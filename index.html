@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <title>五目並べ</title>
+  </head>
+  <body>
+    <main class="app">
+      <div class="board-wrap">
+        <svg id="board" class="board" role="img" aria-label="五目並べの盤"></svg>
+        <div id="result" class="result" hidden></div>
+      </div>
+      <div class="controls">
+        <p id="status" class="status"></p>
+        <button id="new-game" type="button">新しい対局</button>
+        <p id="version" class="version"></p>
+      </div>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
