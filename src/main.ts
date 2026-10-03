@@ -11,6 +11,7 @@ import {
   type Point,
   type Stone,
 } from './game';
+import { registerSW } from 'virtual:pwa-register';
 import { loadGame, loadSideChoice, saveGame, saveSideChoice, type SideChoice } from './storage';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -220,6 +221,17 @@ undoButton.addEventListener('click', () => {
   pending = null;
   saveGame({ moves, human });
   render();
+});
+
+const updateEl = document.querySelector<HTMLElement>('#update')!;
+const updateSW = registerSW({
+  onNeedRefresh() {
+    updateEl.hidden = false;
+  },
+});
+document.querySelector<HTMLButtonElement>('#update-button')!.addEventListener('click', () => {
+  // 盤面は一手ごとに保存済みなので、再読み込みしても対局は続きから始まる
+  void updateSW(true);
 });
 
 // iPadOS Safari はビューポート設定を無視してピンチ拡大するので、ジェスチャーごと止める

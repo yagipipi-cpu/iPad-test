@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="theme-color" content="#f4efe6" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>五目並べ</title>
   </head>
   <body>
@@ -20,6 +23,10 @@
           <button id="new-game" type="button">新しい対局</button>
         </div>
         <p id="version" class="version"></p>
+        <div id="update" class="update" hidden>
+          <span>新しいバージョンがあります</span>
+          <button id="update-button" type="button">更新</button>
+        </div>
       </div>
     </main>
     <dialog id="new-game-dialog">
