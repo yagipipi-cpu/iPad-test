@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="theme-color" content="#f4efe6" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <title>五目並べ</title>
+  </head>
+  <body>
+    <main class="app">
+      <div class="board-wrap">
+        <svg id="board" class="board" role="img" aria-label="五目並べの盤"></svg>
+        <div id="result" class="result" hidden></div>
+      </div>
+      <div class="controls">
+        <p id="status" class="status"></p>
+        <div class="buttons">
+          <button id="undo" type="button">待った</button>
+          <button id="new-game" type="button">新しい対局</button>
+        </div>
+        <p id="version" class="version"></p>
+        <div id="update" class="update" hidden>
+          <span>新しいバージョンがあります</span>
+          <button id="update-button" type="button">更新</button>
+        </div>
+      </div>
+    </main>
+    <dialog id="new-game-dialog">
+      <form method="dialog">
+        <h2>新しい対局</h2>
+        <p id="new-game-warning" class="warning">今の対局は終了します。</p>
+        <div class="choices">
+          <button value="black">先手（黒）</button>
+          <button value="white">後手（白）</button>
+          <button value="random">ランダム</button>
+        </div>
+        <button value="cancel" class="secondary">やめる</button>
+      </form>
+    </dialog>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
