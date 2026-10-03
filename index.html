@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="数独">
+<title>数独</title>
+<style>
+  :root {
+    --bg: #f6f5f1;
+    --surface: #ffffff;
+    --text: #1f2328;
+    --muted: #6b7280;
+    --line: #c9ccd1;
+    --line-bold: #1f2328;
+    --given: #1f2328;
+    --input: #2457c5;
+    --error: #d1242f;
+    --error-bg: #fde8e8;
+    --peer: #eef2f8;
+    --same: #d6e2f7;
+    --selected: #b8cdf2;
+    --accent: #2457c5;
+    --accent-text: #ffffff;
+    --btn: #ebedf0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15171a;
+      --surface: #1e2125;
+      --text: #e6e8eb;
+      --muted: #9aa1aa;
+      --line: #3a3f46;
+      --line-bold: #b8bec6;
+      --given: #e6e8eb;
+      --input: #7aa7ff;
+      --error: #ff6b6b;
+      --error-bg: #4a2023;
+      --peer: #252a31;
+      --same: #2e3b52;
+      --selected: #3b5585;
+      --accent: #5b8def;
+      --accent-text: #ffffff;
+      --btn: #2a2e34;
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Segoe UI", sans-serif;
+    -webkit-user-select: none; user-select: none;
+    padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
+  }
+  .app {
+    max-width: 1100px; margin: 0 auto; min-height: 100%;
+    display: flex; flex-direction: column; gap: 16px; padding: 16px 0;
+  }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: .05em; }
+  .stats { display: flex; gap: 16px; color: var(--muted); font-variant-numeric: tabular-nums; font-size: 15px; }
+  .stats b { color: var(--text); font-weight: 600; }
+  .main { display: flex; gap: 24px; align-items: flex-start; justify-content: center; flex: 1; }
+  .board-wrap { width: min(100%, 70vh, 640px); flex-shrink: 0; }
+  .board {
+    display: grid; grid-template-columns: repeat(9, 1fr);
+    aspect-ratio: 1; background: var(--surface);
+    border: 2.5px solid var(--line-bold); border-radius: 6px; overflow: hidden;
+  }
+  .cell {
+    display: flex; align-items: center; justify-content: center;
+    font-size: clamp(18px, 4.6vmin, 36px); font-variant-numeric: tabular-nums;
+    border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    cursor: pointer; transition: background-color .08s;
+  }
+  .cell:nth-child(9n) { border-right: none; }
+  .cell:nth-child(n+73) { border-bottom: none; }
+  .cell.br { border-right: 2.5px solid var(--line-bold); }
+  .cell.bb { border-bottom: 2.5px solid var(--line-bold); }
+  .cell.given { color: var(--given); font-weight: 600; }
+  .cell.user { color: var(--input); }
+  .cell.peer { background: var(--peer); }
+  .cell.same { background: var(--same); }
+  .cell.selected { background: var(--selected); }
+  .cell.wrong { color: var(--error); background: var(--error-bg); }
+  .cell.selected.wrong { background: var(--selected); }
+  .cell.hinted { animation: pop .4s ease; }
+  @keyframes pop { 50% { transform: scale(1.25); } }
+
+  .side { display: flex; flex-direction: column; gap: 16px; width: 340px; }
+  .row { display: flex; gap: 8px; }
+  button {
+    font: inherit; color: var(--text); background: var(--btn);
+    border: none; border-radius: 10px; padding: 12px; cursor: pointer;
+    touch-action: manipulation;
+  }
+  button:active { filter: brightness(.9); }
+  button:disabled { opacity: .35; cursor: default; }
+  button.primary { background: var(--accent); color: var(--accent-text); font-weight: 600; }
+  .difficulty { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .difficulty button { white-space: nowrap; padding: 12px 4px; }
+  .difficulty button.active { background: var(--accent); color: var(--accent-text); }
+  .actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .actions button { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 13px; padding: 10px 4px; }
+  .actions svg { width: 24px; height: 24px; }
+  .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .pad button { font-size: 28px; padding: 14px 0 6px; display: flex; flex-direction: column; align-items: center; line-height: 1; }
+  .pad button small { font-size: 11px; color: var(--muted); margin-top: 4px; min-height: 12px; }
+  .pad button.done { opacity: .3; }
+  .label { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.45);
+    display: none; align-items: center; justify-content: center; padding: 16px; z-index: 10;
+  }
+  .overlay.show { display: flex; }
+  .dialog {
+    background: var(--surface); border-radius: 16px; padding: 28px 24px;
+    width: min(100%, 360px); text-align: center; display: flex; flex-direction: column; gap: 14px;
+  }
+  .dialog h2 { margin: 0; font-size: 24px; }
+  .dialog p { margin: 0; color: var(--muted); }
+  .board.paused .cell { color: transparent !important; background: var(--surface) !important; }
+  .generating { position: relative; }
+  .generating::after {
+    content: "問題を作成中…"; position: absolute; inset: 0; display: flex;
+    align-items: center; justify-content: center; background: var(--surface); color: var(--muted);
+  }
+
+  /* 縦向き・狭い画面ではパネルを盤面の下へ */
+  @media (max-width: 900px), (orientation: portrait) {
+    .main { flex-direction: column; align-items: center; justify-content: flex-start; flex: none; }
+    .board-wrap { width: min(100%, 600px, 58vh); }
+    .side { width: min(100%, 600px); }
+    .pad { grid-template-columns: repeat(9, 1fr); gap: 6px; }
+    .pad button { font-size: 24px; padding: 12px 0 4px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>数独</h1>
+    <div class="stats">
+      <span>難易度 <b id="diffLabel">-</b></span>
+      <span>ミス <b id="mistakes">0</b></span>
+      <span>ヒント <b id="hints">0</b></span>
+      <span><b id="timer">00:00</b></span>
+    </div>
+  </header>
+
+  <div class="main">
+    <div class="board-wrap">
+      <div class="board" id="board"></div>
+    </div>
+
+    <div class="side">
+      <div>
+        <div class="label">新しいゲーム</div>
+        <div class="difficulty" id="difficulty">
+          <button data-diff="easy">やさしい</button>
+          <button data-diff="normal">ふつう</button>
+          <button data-diff="hard">むずかしい</button>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="undoBtn" title="元に戻す">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+          戻す
+        </button>
+        <button id="redoBtn" title="やり直す">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>
+          進む
+        </button>
+        <button id="eraseBtn" title="消す">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H7L3 16a1.5 1.5 0 0 1 0-2L13 4a1.5 1.5 0 0 1 2 0l5 5a1.5 1.5 0 0 1 0 2L11 20"/><path d="m8 9 7 7"/></svg>
+          消す
+        </button>
+        <button id="hintBtn" title="ヒント">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V17h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z"/></svg>
+          ヒント
+        </button>
+      </div>
+
+      <div class="pad" id="pad"></div>
+
+      <button id="pauseBtn">一時停止</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="winOverlay">
+  <div class="dialog">
+    <h2>クリア！</h2>
+    <p id="winText"></p>
+    <button class="primary" id="againBtn">もう一度遊ぶ</button>
+  </div>
+</div>
+
+<div class="overlay" id="confirmOverlay">
+  <div class="dialog">
+    <h2>新しいゲーム</h2>
+    <p>今のゲームは失われます。よろしいですか？</p>
+    <div class="row" style="justify-content:center">
+      <button id="cancelNew">やめる</button>
+      <button class="primary" id="confirmNew">はじめる</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ===== 問題生成 =====
+const DIFFICULTY = {
+  easy:   { label: 'やさしい',   clues: 40 },
+  normal: { label: 'ふつう',     clues: 32 },
+  hard:   { label: 'むずかしい', clues: 25 },
+};
+
+const ROW = i => Math.floor(i / 9);
+const COL = i => i % 9;
+const BOX = i => Math.floor(ROW(i) / 3) * 3 + Math.floor(COL(i) / 3);
+
+// 各マスと同じ行・列・ブロックにあるマス
+const PEERS = Array.from({ length: 81 }, (_, i) => {
+  const s = new Set();
+  for (let j = 0; j < 81; j++) {
+    if (j !== i && (ROW(j) === ROW(i) || COL(j) === COL(i) || BOX(j) === BOX(i))) s.add(j);
+  }
+  return [...s];
+});
+
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function candidates(grid, i) {
+  const used = new Array(10).fill(false);
+  for (const p of PEERS[i]) used[grid[p]] = true;
+  const c = [];
+  for (let n = 1; n <= 9; n++) if (!used[n]) c.push(n);
+  return c;
+}
+
+// 解の数を limit まで数える（候補が最も少ないマスから探索）
+function countSolutions(grid, limit = 2) {
+  let best = -1, bestCands = null;
+  for (let i = 0; i < 81; i++) {
+    if (grid[i]) continue;
+    const c = candidates(grid, i);
+    if (c.length === 0) return 0;
+    if (!bestCands || c.length < bestCands.length) { best = i; bestCands = c; if (c.length === 1) break; }
+  }
+  if (best === -1) return 1;
+  let count = 0;
+  for (const n of bestCands) {
+    grid[best] = n;
+    count += countSolutions(grid, limit - count);
+    if (count >= limit) break;
+  }
+  grid[best] = 0;
+  return count;
+}
+
+function fillGrid(grid) {
+  const i = grid.indexOf(0);
+  if (i === -1) return true;
+  for (const n of shuffle(candidates(grid, i))) {
+    grid[i] = n;
+    if (fillGrid(grid)) return true;
+  }
+  grid[i] = 0;
+  return false;
+}
+
+function generate(diff) {
+  const solution = new Array(81).fill(0);
+  fillGrid(solution);
+  const puzzle = solution.slice();
+  let filled = 81;
+  // 点対称にマスを抜き、解が一意である限り続ける
+  for (const i of shuffle([...Array(41).keys()])) {
+    if (filled <= DIFFICULTY[diff].clues) break;
+    const j = 80 - i;
+    const bi = puzzle[i], bj = puzzle[j];
+    puzzle[i] = 0; puzzle[j] = 0;
+    if (countSolutions(puzzle.slice()) !== 1) {
+      puzzle[i] = bi; puzzle[j] = bj;
+    } else {
+      filled -= i === j ? 1 : 2;
+    }
+  }
+  return { puzzle, solution };
+}
+
+// ===== 状態 =====
+const STORAGE_KEY = 'sudoku-save-v1';
+let state = null;        // { diff, puzzle, solution, values, mistakes, hints, elapsed, undo, redo, done }
+let selected = -1;
+let paused = false;
+let lastTick = 0;
+let pendingDiff = null;
+
+const $ = id => document.getElementById(id);
+const boardEl = $('board');
+const padEl = $('pad');
+const cells = [];
+
+for (let i = 0; i < 81; i++) {
+  const c = document.createElement('div');
+  c.className = 'cell';
+  if (COL(i) === 2 || COL(i) === 5) c.classList.add('br');
+  if (ROW(i) === 2 || ROW(i) === 5) c.classList.add('bb');
+  c.addEventListener('click', () => { if (!paused) { selected = i; render(); } });
+  boardEl.appendChild(c);
+  cells.push(c);
+}
+
+const padBtns = [];
+for (let n = 1; n <= 9; n++) {
+  const b = document.createElement('button');
+  b.innerHTML = `${n}<small></small>`;
+  b.addEventListener('click', () => input(n));
+  padEl.appendChild(b);
+  padBtns.push(b);
+}
+
+function save() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+}
+
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (s && Array.isArray(s.values) && s.values.length === 81 && !s.done) return s;
+  } catch (e) {}
+  return null;
+}
+
+function newGame(diff) {
+  boardEl.classList.add('generating');
+  $('winOverlay').classList.remove('show');
+  // 生成中の表示を描画させてから重い処理を走らせる
+  setTimeout(() => {
+    const { puzzle, solution } = generate(diff);
+    state = {
+      diff, puzzle, solution, values: puzzle.slice(),
+      mistakes: 0, hints: 0, elapsed: 0, undo: [], redo: [], done: false,
+    };
+    selected = -1;
+    setPaused(false);
+    boardEl.classList.remove('generating');
+    save();
+    render();
+  }, 30);
+}
+
+function setValue(i, v, record = true) {
+  const prev = state.values[i];
+  if (prev === v) return;
+  if (record) { state.undo.push([i, prev, v]); state.redo = []; }
+  state.values[i] = v;
+  if (v && v !== state.solution[i] && record) state.mistakes++;
+}
+
+function input(n) {
+  if (!state || paused || state.done || selected < 0) return;
+  if (state.puzzle[selected]) return;
+  // 正解済みのマスは上書きしない
+  if (state.values[selected] === state.solution[selected]) return;
+  setValue(selected, state.values[selected] === n ? 0 : n);
+  afterChange();
+}
+
+function erase() {
+  if (!state || paused || state.done || selected < 0 || state.puzzle[selected]) return;
+  if (state.values[selected] === state.solution[selected]) return;
+  setValue(selected, 0);
+  afterChange();
+}
+
+function undo() {
+  if (!state || paused || state.done || !state.undo.length) return;
+  const [i, prev, v] = state.undo.pop();
+  state.redo.push([i, prev, v]);
+  state.values[i] = prev;
+  selected = i;
+  afterChange();
+}
+
+function redo() {
+  if (!state || paused || state.done || !state.redo.length) return;
+  const [i, prev, v] = state.redo.pop();
+  state.undo.push([i, prev, v]);
+  state.values[i] = v;
+  selected = i;
+  afterChange();
+}
+
+function hint() {
+  if (!state || paused || state.done) return;
+  let target = selected;
+  if (target < 0 || state.values[target] === state.solution[target]) {
+    // 選択中のマスが埋まっていれば、間違い→空きマスの順でランダムに選ぶ
+    const wrong = [], empty = [];
+    state.values.forEach((v, i) => {
+      if (v && v !== state.solution[i]) wrong.push(i);
+      else if (!v) empty.push(i);
+    });
+    const pool = wrong.length ? wrong : empty;
+    if (!pool.length) return;
+    target = pool[Math.floor(Math.random() * pool.length)];
+  }
+  setValue(target, state.solution[target]);
+  state.hints++;
+  selected = target;
+  cells[target].classList.remove('hinted');
+  void cells[target].offsetWidth;
+  cells[target].classList.add('hinted');
+  afterChange();
+}
+
+function afterChange() {
+  if (state.values.every((v, i) => v === state.solution[i])) {
+    state.done = true;
+    selected = -1;
+    $('winText').textContent =
+      `${DIFFICULTY[state.diff].label} ・ ${formatTime(state.elapsed)} ・ ミス ${state.mistakes} ・ ヒント ${state.hints}`;
+    setTimeout(() => $('winOverlay').classList.add('show'), 300);
+  }
+  save();
+  render();
+}
+
+function render() {
+  if (!state) return;
+  const sel = selected;
+  const selVal = sel >= 0 ? state.values[sel] : 0;
+  const counts = new Array(10).fill(0);
+
+  for (let i = 0; i < 81; i++) {
+    const v = state.values[i];
+    if (v === state.solution[i]) counts[v]++;
+    const c = cells[i];
+    c.textContent = v || '';
+    c.className = 'cell';
+    if (COL(i) === 2 || COL(i) === 5) c.classList.add('br');
+    if (ROW(i) === 2 || ROW(i) === 5) c.classList.add('bb');
+    if (state.puzzle[i]) c.classList.add('given');
+    else if (v) c.classList.add('user');
+    if (v && v !== state.solution[i]) c.classList.add('wrong');
+    if (sel >= 0) {
+      if (i === sel) c.classList.add('selected');
+      else if (selVal && v === selVal) c.classList.add('same');
+      else if (ROW(i) === ROW(sel) || COL(i) === COL(sel) || BOX(i) === BOX(sel)) c.classList.add('peer');
+    }
+  }
+
+  padBtns.forEach((b, k) => {
+    const left = 9 - counts[k + 1];
+    b.querySelector('small').textContent = left > 0 ? left : '';
+    b.classList.toggle('done', left === 0);
+  });
+
+  $('diffLabel').textContent = DIFFICULTY[state.diff].label;
+  $('mistakes').textContent = state.mistakes;
+  $('hints').textContent = state.hints;
+  $('timer').textContent = formatTime(state.elapsed);
+  $('undoBtn').disabled = !state.undo.length || state.done;
+  $('redoBtn').disabled = !state.redo.length || state.done;
+  document.querySelectorAll('#difficulty button').forEach(b =>
+    b.classList.toggle('active', b.dataset.diff === state.diff));
+}
+
+// ===== タイマー =====
+function formatTime(ms) {
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, sec = s % 60;
+  const mmss = `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+  return h ? `${h}:${mmss}` : mmss;
+}
+
+function setPaused(p) {
+  paused = p;
+  boardEl.classList.toggle('paused', p);
+  $('pauseBtn').textContent = p ? '再開' : '一時停止';
+  lastTick = performance.now();
+}
+
+setInterval(() => {
+  const now = performance.now();
+  if (state && !paused && !state.done && !document.hidden) {
+    state.elapsed += now - lastTick;
+    $('timer').textContent = formatTime(state.elapsed);
+    if (Math.floor(state.elapsed / 1000) % 5 === 0) save();
+  }
+  lastTick = now;
+}, 500);
+
+document.addEventListener('visibilitychange', () => {
+  lastTick = performance.now();
+  if (document.hidden && state) save();
+});
+window.addEventListener('pagehide', () => { if (state) save(); });
+
+// ===== 操作 =====
+$('undoBtn').addEventListener('click', undo);
+$('redoBtn').addEventListener('click', redo);
+$('eraseBtn').addEventListener('click', erase);
+$('hintBtn').addEventListener('click', hint);
+$('pauseBtn').addEventListener('click', () => { if (state && !state.done) { setPaused(!paused); render(); } });
+$('againBtn').addEventListener('click', () => newGame(state.diff));
+
+document.querySelectorAll('#difficulty button').forEach(b => {
+  b.addEventListener('click', () => {
+    const inProgress = state && !state.done && state.values.some((v, i) => v && !state.puzzle[i]);
+    if (inProgress) { pendingDiff = b.dataset.diff; $('confirmOverlay').classList.add('show'); }
+    else newGame(b.dataset.diff);
+  });
+});
+$('cancelNew').addEventListener('click', () => $('confirmOverlay').classList.remove('show'));
+$('confirmNew').addEventListener('click', () => {
+  $('confirmOverlay').classList.remove('show');
+  newGame(pendingDiff);
+});
+
+document.addEventListener('keydown', e => {
+  if (!state) return;
+  if (e.key >= '1' && e.key <= '9') return input(Number(e.key));
+  if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') return erase();
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+    e.preventDefault();
+    return e.shiftKey ? redo() : undo();
+  }
+  const moves = { ArrowUp: -9, ArrowDown: 9, ArrowLeft: -1, ArrowRight: 1 };
+  if (moves[e.key] !== undefined && !paused) {
+    e.preventDefault();
+    if (selected < 0) selected = 0;
+    else {
+      const d = moves[e.key];
+      const r = ROW(selected), c = COL(selected);
+      if (d === -9) selected = ((r + 8) % 9) * 9 + c;
+      else if (d === 9) selected = ((r + 1) % 9) * 9 + c;
+      else if (d === -1) selected = r * 9 + (c + 8) % 9;
+      else selected = r * 9 + (c + 1) % 9;
+    }
+    render();
+  }
+});
+
+// ===== 起動 =====
+const saved = load();
+if (saved) {
+  state = saved;
+  setPaused(false);
+  render();
+} else {
+  newGame('normal');
+}
+</script>
+</body>
+</html>
