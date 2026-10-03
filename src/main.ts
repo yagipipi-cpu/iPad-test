@@ -1,4 +1,5 @@
 import './style.css';
+import type { AiRequest, AiResponse } from './ai.worker';
 import { BOARD_SIZE, canPlace, cellAt, boardFromMoves, gameStatus, type Point, type Stone } from './game';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -14,7 +15,8 @@ const STAR_POINTS: readonly Point[] = [
   { x: 11, y: 11 },
 ];
 
-const STONE_NAME: Record<Stone, string> = { black: '黒', white: '白' };
+/** CPU の手が一瞬で出ると見落としやすいので、最低限この時間は「考え中」にする */
+const MIN_THINK_MS = 400;
 
 const boardEl = document.querySelector<SVGSVGElement>('#board')!;
 const statusEl = document.querySelector<HTMLElement>('#status')!;
@@ -25,6 +27,13 @@ document.querySelector<HTMLElement>('#version')!.textContent = __APP_VERSION__;
 let moves: Point[] = [];
 /** 仮置き中のマス。同じマスをもう一度タップすると確定する。 */
 let pending: Point | null = null;
+// TODO: 対局開始時に先手・後手を選べるようにする
+let human: Stone = 'black';
+let thinking = false;
+/** CPU への依頼の通し番号。新しい対局を始めたら古い応答を捨てるのに使う。 */
+let requestId = 0;
+
+const worker = new Worker(new URL('./ai.worker.ts', import.meta.url), { type: 'module' });
 
 const coord = (i: number) => GAP / 2 + i * GAP;
 const samePoint = (a: Point | null, b: Point | null) => !!a && !!b && a.x === b.x && a.y === b.y;
@@ -98,10 +107,10 @@ function render(): void {
   }
 
   if (status.kind === 'playing') {
-    statusEl.textContent = `${STONE_NAME[status.turn]}の番`;
+    statusEl.textContent = thinking ? 'CPU 考え中…' : 'あなたの番';
     resultEl.hidden = true;
   } else {
-    const text = status.kind === 'won' ? `${STONE_NAME[status.winner]}の勝ち` : '引き分け';
+    const text = status.kind === 'won' ? (status.winner === human ? 'あなたの勝ち' : 'あなたの負け') : '引き分け';
     statusEl.textContent = text;
     resultEl.textContent = text;
     resultEl.hidden = false;
@@ -121,13 +130,37 @@ function pointFromEvent(e: PointerEvent): Point | null {
 
 boardEl.setAttribute('viewBox', `0 0 ${SIZE} ${SIZE}`);
 
+function startCpuTurnIfNeeded(): void {
+  const status = gameStatus(moves);
+  if (status.kind !== 'playing' || status.turn === human) return;
+  thinking = true;
+  const request: AiRequest = { id: ++requestId, moves };
+  const startedAt = performance.now();
+  worker.onmessage = (e: MessageEvent<AiResponse>) => {
+    if (e.data.id !== requestId) return;
+    const { move } = e.data;
+    setTimeout(
+      () => {
+        if (request.id !== requestId) return;
+        thinking = false;
+        moves.push(move);
+        render();
+      },
+      Math.max(0, MIN_THINK_MS - (performance.now() - startedAt)),
+    );
+  };
+  worker.postMessage(request);
+}
+
 boardEl.addEventListener('pointerup', (e) => {
+  if (thinking) return;
   const p = pointFromEvent(e);
   if (!p || !canPlace(moves, p)) {
     pending = null;
   } else if (samePoint(p, pending)) {
     moves.push(p);
     pending = null;
+    startCpuTurnIfNeeded();
   } else {
     pending = p;
   }
@@ -138,10 +171,14 @@ newGameButton.addEventListener('click', () => {
   if (moves.length > 0 && gameStatus(moves).kind === 'playing' && !confirm('今の対局を終了しますか？')) return;
   moves = [];
   pending = null;
+  thinking = false;
+  requestId++;
+  startCpuTurnIfNeeded();
   render();
 });
 
 // iPadOS Safari はビューポート設定を無視してピンチ拡大するので、ジェスチャーごと止める
 document.addEventListener('gesturestart', (e) => e.preventDefault());
 
+startCpuTurnIfNeeded();
 render();
