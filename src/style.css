@@ -95,8 +95,75 @@ button {
   color: var(--button-text);
 }
 
+button:disabled {
+  opacity: 0.35;
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--text);
+}
+
 button:active {
   opacity: 0.7;
+}
+
+.buttons {
+  display: flex;
+  gap: 12px;
+}
+
+@media (orientation: landscape) {
+  .buttons {
+    flex-direction: column;
+    width: 100%;
+  }
+}
+
+dialog {
+  border: none;
+  border-radius: 16px;
+  padding: 24px;
+  background: var(--bg);
+  color: var(--text);
+  max-width: calc(100vw - 32px);
+}
+
+dialog::backdrop {
+  background: rgb(0 0 0 / 0.4);
+}
+
+dialog form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+dialog h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.warning {
+  margin: 0;
+  color: var(--accent);
+}
+
+.warning[hidden] {
+  display: none;
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+
+.choices button.last-choice {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .version {

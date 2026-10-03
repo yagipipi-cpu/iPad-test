@@ -1,6 +1,17 @@
 import './style.css';
 import type { AiRequest, AiResponse } from './ai.worker';
-import { BOARD_SIZE, canPlace, cellAt, boardFromMoves, gameStatus, type Point, type Stone } from './game';
+import {
+  BOARD_SIZE,
+  boardFromMoves,
+  canPlace,
+  canUndo,
+  cellAt,
+  gameStatus,
+  undoForPlayer,
+  type Point,
+  type Stone,
+} from './game';
+import { loadGame, loadSideChoice, saveGame, saveSideChoice, type SideChoice } from './storage';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 /** 交点の間隔（SVG 座標）。盤の外周には半マス分の余白を取る。 */
@@ -22,13 +33,16 @@ const boardEl = document.querySelector<SVGSVGElement>('#board')!;
 const statusEl = document.querySelector<HTMLElement>('#status')!;
 const resultEl = document.querySelector<HTMLElement>('#result')!;
 const newGameButton = document.querySelector<HTMLButtonElement>('#new-game')!;
+const undoButton = document.querySelector<HTMLButtonElement>('#undo')!;
+const newGameDialog = document.querySelector<HTMLDialogElement>('#new-game-dialog')!;
+const newGameWarning = document.querySelector<HTMLElement>('#new-game-warning')!;
 document.querySelector<HTMLElement>('#version')!.textContent = __APP_VERSION__;
 
-let moves: Point[] = [];
+const saved = loadGame();
+let moves: Point[] = saved?.moves ?? [];
+let human: Stone = saved?.human ?? 'black';
 /** 仮置き中のマス。同じマスをもう一度タップすると確定する。 */
 let pending: Point | null = null;
-// TODO: 対局開始時に先手・後手を選べるようにする
-let human: Stone = 'black';
 let thinking = false;
 /** CPU への依頼の通し番号。新しい対局を始めたら古い応答を捨てるのに使う。 */
 let requestId = 0;
@@ -106,6 +120,8 @@ function render(): void {
     boardEl.append(drawStone(pending, status.turn, 0.5));
   }
 
+  undoButton.disabled = thinking || !canUndo(moves, human);
+
   if (status.kind === 'playing') {
     statusEl.textContent = thinking ? 'CPU 考え中…' : 'あなたの番';
     resultEl.hidden = true;
@@ -144,6 +160,7 @@ function startCpuTurnIfNeeded(): void {
         if (request.id !== requestId) return;
         thinking = false;
         moves.push(move);
+        saveGame({ moves, human });
         render();
       },
       Math.max(0, MIN_THINK_MS - (performance.now() - startedAt)),
@@ -160,6 +177,7 @@ boardEl.addEventListener('pointerup', (e) => {
   } else if (samePoint(p, pending)) {
     moves.push(p);
     pending = null;
+    saveGame({ moves, human });
     startCpuTurnIfNeeded();
   } else {
     pending = p;
@@ -167,18 +185,47 @@ boardEl.addEventListener('pointerup', (e) => {
   render();
 });
 
-newGameButton.addEventListener('click', () => {
-  if (moves.length > 0 && gameStatus(moves).kind === 'playing' && !confirm('今の対局を終了しますか？')) return;
+function startNewGame(choice: SideChoice): void {
+  saveSideChoice(choice);
+  human = choice === 'random' ? (Math.random() < 0.5 ? 'black' : 'white') : choice;
   moves = [];
   pending = null;
   thinking = false;
   requestId++;
+  saveGame({ moves, human });
   startCpuTurnIfNeeded();
+  render();
+}
+
+function openNewGameDialog(): void {
+  newGameWarning.hidden = !(moves.length > 0 && gameStatus(moves).kind === 'playing');
+  const last = loadSideChoice();
+  for (const b of newGameDialog.querySelectorAll<HTMLButtonElement>('.choices button')) {
+    b.classList.toggle('last-choice', b.value === last);
+  }
+  newGameDialog.showModal();
+}
+
+newGameButton.addEventListener('click', openNewGameDialog);
+
+newGameDialog.addEventListener('close', () => {
+  const choice = newGameDialog.returnValue;
+  newGameDialog.returnValue = '';
+  if (choice === 'black' || choice === 'white' || choice === 'random') startNewGame(choice);
+});
+
+undoButton.addEventListener('click', () => {
+  if (thinking) return;
+  moves = undoForPlayer(moves, human);
+  pending = null;
+  saveGame({ moves, human });
   render();
 });
 
 // iPadOS Safari はビューポート設定を無視してピンチ拡大するので、ジェスチャーごと止める
 document.addEventListener('gesturestart', (e) => e.preventDefault());
 
+// 保存データがなければ（初回起動）、先手・後手の選択から始める
+if (!saved) openNewGameDialog();
 startCpuTurnIfNeeded();
 render();

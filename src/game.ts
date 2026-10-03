@@ -78,3 +78,19 @@ export function canPlace(moves: readonly Point[], p: Point): boolean {
   if (gameStatus(moves).kind !== 'playing') return false;
   return !moves.some((m) => m.x === p.x && m.y === p.y);
 }
+
+/** player が既に1手以上打っていれば「待った」できる */
+export function canUndo(moves: readonly Point[], player: Stone): boolean {
+  return moves.some((_, i) => stoneForMove(i) === player);
+}
+
+/**
+ * player の直前の手まで戻す。CPU の応手があればそれも一緒に戻るので、
+ * 戻した後は必ず player の手番になる。
+ */
+export function undoForPlayer(moves: readonly Point[], player: Stone): Point[] {
+  if (!canUndo(moves, player)) return [...moves];
+  const result = moves.slice(0, -1);
+  while (result.length > 0 && stoneForMove(result.length) !== player) result.pop();
+  return result;
+}

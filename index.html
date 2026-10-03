@@ -15,10 +15,25 @@
       </div>
       <div class="controls">
         <p id="status" class="status"></p>
-        <button id="new-game" type="button">新しい対局</button>
+        <div class="buttons">
+          <button id="undo" type="button">待った</button>
+          <button id="new-game" type="button">新しい対局</button>
+        </div>
         <p id="version" class="version"></p>
       </div>
     </main>
+    <dialog id="new-game-dialog">
+      <form method="dialog">
+        <h2>新しい対局</h2>
+        <p id="new-game-warning" class="warning">今の対局は終了します。</p>
+        <div class="choices">
+          <button value="black">先手（黒）</button>
+          <button value="white">後手（白）</button>
+          <button value="random">ランダム</button>
+        </div>
+        <button value="cancel" class="secondary">やめる</button>
+      </form>
+    </dialog>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

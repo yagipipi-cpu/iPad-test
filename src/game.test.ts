@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BOARD_SIZE, boardFromMoves, canPlace, findWinLine, gameStatus, type Point } from './game';
+import { BOARD_SIZE, boardFromMoves, canPlace, canUndo, findWinLine, gameStatus, undoForPlayer, type Point } from './game';
 
 /** 黒の手を順に並べ、間に白の手を（勝負に関係ない場所へ）挟む。 */
 function blackWith(black: Point[], white: Point[]): Point[] {
@@ -122,5 +122,32 @@ describe('canPlace', () => {
   it('勝負がついた後は置けない', () => {
     const moves = blackWith(pts([3, 7], [4, 7], [5, 7], [6, 7], [7, 7]), farWhite);
     expect(canPlace(moves, { x: 10, y: 10 })).toBe(false);
+  });
+});
+
+describe('undoForPlayer', () => {
+  it('自分の手と CPU の応手をまとめて戻す', () => {
+    expect(undoForPlayer(pts([7, 7], [8, 8], [6, 6], [9, 9]), 'black')).toEqual(pts([7, 7], [8, 8]));
+  });
+
+  it('自分の手で終局していれば、その1手だけ戻す', () => {
+    // 黒が5連で勝った直後（最後の手は黒）
+    const moves = blackWith(pts([3, 7], [4, 7], [5, 7], [6, 7], [7, 7]), farWhite);
+    const undone = undoForPlayer(moves, 'black');
+    expect(undone).toEqual(moves.slice(0, -1));
+    expect(gameStatus(undone)).toEqual({ kind: 'playing', turn: 'black' });
+  });
+
+  it('自分が後手のとき、CPU の初手だけは戻さない', () => {
+    expect(canUndo(pts([7, 7]), 'white')).toBe(false);
+    expect(undoForPlayer(pts([7, 7]), 'white')).toEqual(pts([7, 7]));
+  });
+
+  it('自分が後手のとき、自分の手と CPU の応手を戻す', () => {
+    expect(undoForPlayer(pts([7, 7], [8, 8], [6, 6]), 'white')).toEqual(pts([7, 7]));
+  });
+
+  it('まだ1手も打っていなければ戻せない', () => {
+    expect(canUndo([], 'black')).toBe(false);
   });
 });
