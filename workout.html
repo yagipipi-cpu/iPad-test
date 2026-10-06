@@ -1,0 +1,793 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="筋トレタイマー">
+<title>筋トレタイマー</title>
+<style>
+  :root {
+    --bg: #f6f5f1;
+    --surface: #ffffff;
+    --text: #1f2328;
+    --muted: #6b7280;
+    --line: #dcdfe3;
+    --btn: #ebedf0;
+    --track: #e4e6ea;
+    --prep: #2f6fdb;
+    --work: #e8590c;
+    --rest: #12a150;
+    --round: #7c4dff;
+    --done: #6b7280;
+    --phase: var(--prep);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121417;
+      --surface: #1c1f23;
+      --text: #e9ebee;
+      --muted: #9aa1aa;
+      --line: #2e333a;
+      --btn: #2a2e34;
+      --track: #2a2e34;
+      --prep: #5b8def;
+      --work: #ff7a2e;
+      --rest: #2fd17a;
+      --round: #a084ff;
+      --done: #9aa1aa;
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Segoe UI", sans-serif;
+    -webkit-user-select: none; user-select: none;
+    padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
+    transition: background-color .3s;
+  }
+  body.flash { animation: flash .5s ease-out; }
+  @keyframes flash { from { background: color-mix(in srgb, var(--phase) 35%, var(--bg)); } to { background: var(--bg); } }
+
+  .app { max-width: 1100px; margin: 0 auto; padding: 16px 0 24px; display: flex; flex-direction: column; gap: 16px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 22px; letter-spacing: .02em; }
+  .head-right { display: flex; gap: 8px; align-items: center; }
+  .icon-btn {
+    border: 0; background: var(--btn); color: var(--text); border-radius: 12px;
+    min-width: 44px; height: 44px; padding: 0 12px; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  .icon-btn[aria-pressed="false"] { opacity: .5; }
+  a.icon-btn { display: inline-flex; align-items: center; text-decoration: none; }
+
+  .tabs { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--btn); border-radius: 14px; padding: 4px; gap: 4px; }
+  .tabs button {
+    border: 0; background: transparent; color: var(--muted); font-size: 16px; font-weight: 700;
+    height: 44px; border-radius: 10px; cursor: pointer;
+  }
+  .tabs button[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+
+  .panel { display: none; }
+  .panel.active { display: grid; gap: 16px; }
+  @media (min-width: 900px) and (orientation: landscape) {
+    .panel.active.split { grid-template-columns: 1.15fr 1fr; align-items: start; }
+  }
+
+  .card { background: var(--surface); border-radius: 20px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+
+  /* ---------- dial ---------- */
+  .dial-wrap { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  .dial { position: relative; width: min(78vw, 60vh, 520px); aspect-ratio: 1; }
+  .dial svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .dial .track { stroke: var(--track); }
+  .dial .prog { stroke: var(--phase); stroke-linecap: round; transition: stroke .3s; }
+  .dial-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; }
+  .phase-label { font-size: clamp(20px, 4.5vmin, 34px); font-weight: 800; color: var(--phase); letter-spacing: .08em; transition: color .3s; }
+  .big-time { font-size: clamp(64px, 19vmin, 150px); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: -.02em; }
+  .big-time.small { font-size: clamp(52px, 14vmin, 112px); }
+  .sub { font-size: clamp(15px, 2.8vmin, 20px); color: var(--muted); font-variant-numeric: tabular-nums; }
+  .counter { font-size: clamp(16px, 3vmin, 22px); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .pulse { animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 50% { transform: scale(1.06); } }
+
+  .next { font-size: 16px; color: var(--muted); min-height: 1.4em; text-align: center; }
+  .next b { color: var(--text); }
+
+  .controls { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; width: 100%; }
+  .ctl {
+    border: 0; border-radius: 18px; font-size: 18px; font-weight: 800; cursor: pointer;
+    height: 64px; min-width: 96px; padding: 0 20px; background: var(--btn); color: var(--text);
+  }
+  .ctl.primary { background: var(--phase); color: #fff; min-width: 180px; font-size: 22px; transition: background-color .3s; }
+  .ctl:disabled { opacity: .35; cursor: default; }
+  .ctl:active:not(:disabled) { transform: scale(.97); }
+
+  .bar { width: 100%; height: 8px; border-radius: 4px; background: var(--track); overflow: hidden; }
+  .bar > div { height: 100%; width: 0; background: var(--phase); transition: width .25s linear, background-color .3s; }
+  .totals { display: flex; justify-content: space-between; width: 100%; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  /* ---------- settings ---------- */
+  .presets { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .chip {
+    border: 2px solid var(--line); background: transparent; color: var(--text); border-radius: 999px;
+    height: 40px; padding: 0 14px; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  .chip.on { border-color: var(--phase); color: var(--phase); }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+  .row:first-of-type { border-top: 0; }
+  .row .lbl { font-size: 17px; font-weight: 600; }
+  .row .lbl small { display: block; font-size: 13px; font-weight: 400; color: var(--muted); }
+  .stepper { display: flex; align-items: center; gap: 6px; }
+  .stepper button {
+    border: 0; background: var(--btn); color: var(--text); width: 48px; height: 48px; border-radius: 12px;
+    font-size: 24px; font-weight: 700; cursor: pointer; touch-action: manipulation;
+  }
+  .stepper output { min-width: 84px; text-align: center; font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .summary { margin-top: 8px; font-size: 15px; color: var(--muted); text-align: right; }
+  .summary b { color: var(--text); font-size: 17px; }
+  .card h2 { margin: 0 0 8px; font-size: 17px; }
+  .settings[hidden] { display: none; }
+
+  /* ---------- stopwatch ---------- */
+  .laps { list-style: none; margin: 0; padding: 0; max-height: 52vh; overflow: auto; }
+  .laps li { display: grid; grid-template-columns: 4em 1fr 1fr; gap: 8px; padding: 12px 4px; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; font-size: 18px; }
+  .laps li:first-child { border-top: 0; }
+  .laps li span:nth-child(2), .laps li span:nth-child(3) { text-align: right; }
+  .laps li span:nth-child(3) { color: var(--muted); }
+  .laps li.best span:nth-child(2) { color: var(--rest); font-weight: 700; }
+  .laps li.worst span:nth-child(2) { color: var(--work); font-weight: 700; }
+  .laps-head { display: grid; grid-template-columns: 4em 1fr 1fr; gap: 8px; padding: 0 4px 8px; font-size: 13px; color: var(--muted); }
+  .laps-head span:nth-child(n+2) { text-align: right; }
+  .empty { color: var(--muted); text-align: center; padding: 24px 0; }
+
+  /* ---------- rest ---------- */
+  .quick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .quick button {
+    border: 0; background: var(--btn); color: var(--text); border-radius: 16px; height: 64px;
+    font-size: 22px; font-weight: 800; cursor: pointer; font-variant-numeric: tabular-nums;
+  }
+  .quick button.on { background: var(--rest); color: #fff; }
+  .set-count { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .set-count .num { font-size: 56px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+  .hint { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--line); font-size: 16px; font-weight: 600; }
+  .switch { position: relative; width: 56px; height: 34px; flex: none; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch span { position: absolute; inset: 0; background: var(--track); border-radius: 999px; transition: .2s; cursor: pointer; }
+  .switch span::after { content: ""; position: absolute; width: 28px; height: 28px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+  .switch input:checked + span { background: var(--rest); }
+  .switch input:checked + span::after { transform: translateX(22px); }
+
+  .done-overlay {
+    position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    background: color-mix(in srgb, var(--bg) 88%, transparent); z-index: 10; padding: 16px;
+  }
+  .done-overlay.show { display: flex; }
+  .done-box { background: var(--surface); border-radius: 24px; padding: 28px; text-align: center; max-width: 420px; width: 100%; box-shadow: 0 10px 40px rgba(0,0,0,.2); }
+  .done-box .em { font-size: 56px; }
+  .done-box h2 { margin: 8px 0; font-size: 28px; }
+  .done-box p { color: var(--muted); margin: 0 0 20px; font-size: 17px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>筋トレタイマー</h1>
+    <div class="head-right">
+      <button class="icon-btn" id="soundBtn" aria-pressed="true" title="サウンド">🔊 音</button>
+      <button class="icon-btn" id="voiceBtn" aria-pressed="true" title="音声カウント">🗣 声</button>
+      <a class="icon-btn" href="index.html" title="数独へ">数独</a>
+    </div>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" data-tab="interval" aria-selected="true">インターバル</button>
+    <button role="tab" data-tab="rest" aria-selected="false">セット休憩</button>
+    <button role="tab" data-tab="stopwatch" aria-selected="false">ストップウォッチ</button>
+  </div>
+
+  <!-- ============ インターバル ============ -->
+  <section class="panel split active" id="panel-interval">
+    <div class="card dial-wrap">
+      <div class="dial">
+        <svg viewBox="0 0 200 200"><circle class="track" cx="100" cy="100" r="90" fill="none" stroke-width="12"/><circle class="prog" id="iRing" cx="100" cy="100" r="90" fill="none" stroke-width="12"/></svg>
+        <div class="dial-center">
+          <div class="phase-label" id="iPhase">準備OK</div>
+          <div class="big-time" id="iTime">0:00</div>
+          <div class="counter" id="iCounter">&nbsp;</div>
+        </div>
+      </div>
+      <div class="next" id="iNext">&nbsp;</div>
+      <div class="bar"><div id="iBar"></div></div>
+      <div class="totals"><span id="iElapsed">経過 0:00</span><span id="iLeft">残り 0:00</span></div>
+      <div class="controls">
+        <button class="ctl" id="iPrev" disabled>⏮ 戻る</button>
+        <button class="ctl primary" id="iStart">スタート</button>
+        <button class="ctl" id="iSkip" disabled>次へ ⏭</button>
+        <button class="ctl" id="iReset" disabled>リセット</button>
+      </div>
+    </div>
+
+    <div class="card settings" id="iSettings">
+      <h2>プリセット</h2>
+      <div class="presets" id="presets"></div>
+      <div class="rows" id="iRows"></div>
+      <div class="summary" id="iSummary"></div>
+    </div>
+  </section>
+
+  <!-- ============ セット休憩 ============ -->
+  <section class="panel split" id="panel-rest">
+    <div class="card dial-wrap">
+      <div class="dial">
+        <svg viewBox="0 0 200 200"><circle class="track" cx="100" cy="100" r="90" fill="none" stroke-width="12"/><circle class="prog" id="rRing" cx="100" cy="100" r="90" fill="none" stroke-width="12"/></svg>
+        <div class="dial-center">
+          <div class="phase-label" id="rPhase">セット中</div>
+          <div class="big-time" id="rTime">1:30</div>
+          <div class="sub" id="rSub">セットが終わったら休憩スタート</div>
+        </div>
+      </div>
+      <div class="controls">
+        <button class="ctl" id="rMinus">−10秒</button>
+        <button class="ctl primary" id="rStart">休憩スタート</button>
+        <button class="ctl" id="rPlus">＋10秒</button>
+      </div>
+    </div>
+    <div style="display:grid; gap:16px">
+      <div class="card">
+        <h2>休憩時間</h2>
+        <div class="quick" id="quick"></div>
+        <div class="toggle-row">
+          <span>円タップで休憩スタート<small style="display:block;font-weight:400;font-size:13px;color:var(--muted)">セット後に大きな円を叩くだけで開始</small></span>
+          <label class="switch"><input type="checkbox" id="rTapAnywhere"><span></span></label>
+        </div>
+      </div>
+      <div class="card">
+        <h2>完了セット数</h2>
+        <div class="set-count">
+          <div class="stepper"><button id="setMinus">−</button></div>
+          <div class="num" id="setNum">0</div>
+          <div class="stepper"><button id="setPlus">＋</button></div>
+        </div>
+        <p class="hint">休憩スタートを押すたびに自動で +1 されます。</p>
+        <div class="toggle-row">
+          <span>セット数をリセット</span>
+          <button class="icon-btn" id="setReset">リセット</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ストップウォッチ ============ -->
+  <section class="panel split" id="panel-stopwatch">
+    <div class="card dial-wrap">
+      <div class="dial">
+        <svg viewBox="0 0 200 200"><circle class="track" cx="100" cy="100" r="90" fill="none" stroke-width="12"/><circle class="prog" id="sRing" cx="100" cy="100" r="90" fill="none" stroke-width="12"/></svg>
+        <div class="dial-center">
+          <div class="phase-label" id="sPhase">ストップウォッチ</div>
+          <div class="big-time small" id="sTime">0:00.00</div>
+          <div class="sub" id="sLap">ラップ 0:00.00</div>
+        </div>
+      </div>
+      <div class="controls">
+        <button class="ctl" id="sLapBtn" disabled>ラップ</button>
+        <button class="ctl primary" id="sStart">スタート</button>
+        <button class="ctl" id="sReset" disabled>リセット</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>ラップ</h2>
+      <div class="laps-head"><span>#</span><span>ラップ</span><span>合計</span></div>
+      <ul class="laps" id="laps"></ul>
+    </div>
+  </section>
+</div>
+
+<div class="done-overlay" id="done">
+  <div class="done-box">
+    <div class="em">💪</div>
+    <h2>おつかれさま！</h2>
+    <p id="doneText"></p>
+    <button class="ctl primary" id="doneOk" style="--phase: var(--rest)">OK</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const RING = 2 * Math.PI * 90;
+  for (const id of ['iRing', 'rRing', 'sRing']) {
+    $(id).style.strokeDasharray = RING;
+    $(id).style.strokeDashoffset = 0;
+  }
+  const setRing = (id, frac) => { $(id).style.strokeDashoffset = RING * (1 - Math.max(0, Math.min(1, frac))); };
+
+  // ---------- 保存 ----------
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem('wt.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem('wt.' + k, JSON.stringify(v)); } catch {} },
+  };
+
+  // ---------- 時間表示 ----------
+  const fmt = (sec) => {
+    sec = Math.max(0, Math.ceil(sec - 1e-6));
+    const m = Math.floor(sec / 60), s = sec % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  };
+  const fmtCs = (ms) => {
+    ms = Math.max(0, ms);
+    const cs = Math.floor(ms / 10) % 100, s = Math.floor(ms / 1000) % 60, m = Math.floor(ms / 60000);
+    return `${m}:${String(s).padStart(2, '0')}.${String(cs).padStart(2, '0')}`;
+  };
+  const fmtLong = (sec) => {
+    sec = Math.round(sec);
+    const m = Math.floor(sec / 60), s = sec % 60;
+    return s ? `${m}分${s}秒` : `${m}分`;
+  };
+
+  // ---------- サウンド / 音声 / 振動 ----------
+  let soundOn = store.get('sound', true), voiceOn = store.get('voice', true);
+  let ctx = null;
+  const unlockAudio = () => {
+    if (!ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) ctx = new AC();
+    }
+    if (ctx && ctx.state === 'suspended') ctx.resume();
+  };
+  const beep = (freq = 880, dur = 0.12, times = 1, gap = 0.08) => {
+    if (!soundOn || !ctx) return;
+    let t = ctx.currentTime + 0.01;
+    for (let i = 0; i < times; i++) {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'square'; o.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.25, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(ctx.destination);
+      o.start(t); o.stop(t + dur + 0.02);
+      t += dur + gap;
+    }
+  };
+  const say = (text) => {
+    if (!voiceOn || !('speechSynthesis' in window)) return;
+    try {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'ja-JP'; u.rate = 1.1;
+      speechSynthesis.speak(u);
+    } catch {}
+  };
+  const vibrate = (p) => { try { navigator.vibrate && navigator.vibrate(p); } catch {} };
+  const flash = () => { document.body.classList.remove('flash'); void document.body.offsetWidth; document.body.classList.add('flash'); };
+
+  const syncToggles = () => {
+    $('soundBtn').setAttribute('aria-pressed', soundOn);
+    $('voiceBtn').setAttribute('aria-pressed', voiceOn);
+  };
+  $('soundBtn').onclick = () => { soundOn = !soundOn; store.set('sound', soundOn); syncToggles(); unlockAudio(); if (soundOn) beep(880); };
+  $('voiceBtn').onclick = () => { voiceOn = !voiceOn; store.set('voice', voiceOn); syncToggles(); if (voiceOn) say('音声オン'); else window.speechSynthesis?.cancel(); };
+  syncToggles();
+
+  // ---------- 画面スリープ防止 ----------
+  let wakeLock = null;
+  const anyRunning = () => I.running || R.running || S.running;
+  const updateWake = async () => {
+    try {
+      if (anyRunning() && !wakeLock && 'wakeLock' in navigator && document.visibilityState === 'visible') {
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => { wakeLock = null; });
+      } else if (!anyRunning() && wakeLock) {
+        await wakeLock.release(); wakeLock = null;
+      }
+    } catch {}
+  };
+
+  // ---------- テーマ色 ----------
+  const PHASE_VAR = { prep: '--prep', work: '--work', rest: '--rest', round: '--round', done: '--done' };
+  const setPhaseColor = (p) => document.documentElement.style.setProperty('--phase', `var(${PHASE_VAR[p] || '--prep'})`);
+
+  // ---------- タブ ----------
+  let tab = store.get('tab', 'interval');
+  const showTab = (t) => {
+    tab = t; store.set('tab', t);
+    document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
+    document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + t));
+    refreshColor();
+  };
+  document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+
+  // =====================================================
+  // インターバル
+  // =====================================================
+  const FIELDS = [
+    { key: 'prep',      label: '準備',         note: 'スタート前のカウントダウン', step: 5,  min: 0, max: 60,   time: true },
+    { key: 'work',      label: 'ワーク',       note: '運動する時間',             step: 5,  min: 5, max: 3600, time: true },
+    { key: 'rest',      label: 'レスト',       note: 'セット間の休憩',           step: 5,  min: 0, max: 3600, time: true },
+    { key: 'sets',      label: 'セット数',     note: '1ラウンドあたり',          step: 1,  min: 1, max: 99 },
+    { key: 'rounds',    label: 'ラウンド数',   note: 'セットの繰り返し',         step: 1,  min: 1, max: 20 },
+    { key: 'roundRest', label: 'ラウンド間休憩', note: 'ラウンドの合間',          step: 15, min: 0, max: 3600, time: true },
+  ];
+  const PRESETS = [
+    { name: 'タバタ',        cfg: { prep: 10, work: 20, rest: 10, sets: 8,  rounds: 1, roundRest: 60 } },
+    { name: 'HIIT 40/20',    cfg: { prep: 10, work: 40, rest: 20, sets: 10, rounds: 1, roundRest: 60 } },
+    { name: 'サーキット',    cfg: { prep: 10, work: 45, rest: 15, sets: 5,  rounds: 3, roundRest: 90 } },
+    { name: 'EMOM 10分',     cfg: { prep: 10, work: 60, rest: 0,  sets: 10, rounds: 1, roundRest: 0 } },
+    { name: '筋トレ 5セット', cfg: { prep: 5,  work: 40, rest: 90, sets: 5,  rounds: 1, roundRest: 0 } },
+    { name: 'プランク',      cfg: { prep: 5,  work: 60, rest: 30, sets: 3,  rounds: 1, roundRest: 0 } },
+  ];
+  let cfg = Object.assign({}, PRESETS[0].cfg, store.get('cfg', {}));
+
+  const buildRows = () => {
+    $('iRows').innerHTML = '';
+    for (const f of FIELDS) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.innerHTML = `<div class="lbl">${f.label}<small>${f.note}</small></div>
+        <div class="stepper"><button data-d="-1" aria-label="${f.label}を減らす">−</button><output></output><button data-d="1" aria-label="${f.label}を増やす">＋</button></div>`;
+      const out = row.querySelector('output');
+      const render = () => { out.textContent = f.time ? fmt(cfg[f.key]) : cfg[f.key]; };
+      render();
+      row.querySelectorAll('button').forEach(btn => {
+        const d = +btn.dataset.d;
+        const bump = () => {
+          let v = cfg[f.key] + d * (f.time && cfg[f.key] + d * f.step > 300 ? Math.max(f.step, 15) : f.step);
+          v = Math.max(f.min, Math.min(f.max, v));
+          if (v === cfg[f.key]) return;
+          cfg[f.key] = v; render(); onCfgChange();
+        };
+        // 長押しで連続変更
+        let timer = null, rep = null;
+        const stop = () => { clearTimeout(timer); clearInterval(rep); timer = rep = null; };
+        btn.addEventListener('pointerdown', (e) => {
+          e.preventDefault(); bump();
+          timer = setTimeout(() => { rep = setInterval(bump, 90); }, 450);
+        });
+        ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => btn.addEventListener(ev, stop));
+      });
+      $('iRows').appendChild(row);
+    }
+  };
+  const buildPresets = () => {
+    $('presets').innerHTML = '';
+    for (const p of PRESETS) {
+      const b = document.createElement('button');
+      b.className = 'chip'; b.textContent = p.name;
+      b.onclick = () => { cfg = Object.assign({}, p.cfg); buildRows(); onCfgChange(); };
+      $('presets').appendChild(b);
+    }
+    markPreset();
+  };
+  const markPreset = () => {
+    [...$('presets').children].forEach((b, i) => {
+      const p = PRESETS[i].cfg;
+      b.classList.toggle('on', FIELDS.every(f => p[f.key] === cfg[f.key]));
+    });
+  };
+
+  // セグメント列を生成
+  const buildSegments = (c) => {
+    const segs = [];
+    if (c.prep > 0) segs.push({ type: 'prep', dur: c.prep, label: '準備' });
+    for (let r = 1; r <= c.rounds; r++) {
+      for (let s = 1; s <= c.sets; s++) {
+        segs.push({ type: 'work', dur: c.work, label: 'ワーク', set: s, round: r });
+        const lastSet = s === c.sets, lastRound = r === c.rounds;
+        if (lastSet && lastRound) continue;
+        if (lastSet) { if (c.roundRest > 0) segs.push({ type: 'round', dur: c.roundRest, label: 'ラウンド休憩', set: s, round: r }); }
+        else if (c.rest > 0) segs.push({ type: 'rest', dur: c.rest, label: 'レスト', set: s, round: r });
+      }
+    }
+    return segs;
+  };
+  const totalOf = (segs) => segs.reduce((a, s) => a + s.dur, 0);
+
+  const onCfgChange = () => {
+    store.set('cfg', cfg);
+    markPreset();
+    const segs = buildSegments(cfg);
+    $('iSummary').innerHTML = `合計 <b>${fmtLong(totalOf(segs))}</b>（ワーク ${cfg.sets * cfg.rounds} 回）`;
+    if (!I.started) idleView();
+  };
+
+  const I = { segs: [], idx: 0, endAt: 0, remain: 0, running: false, started: false, lastSec: null, startWall: 0 };
+
+  const now = () => performance.now();
+  const segRemain = () => I.running ? (I.endAt - now()) / 1000 : I.remain;
+
+  const idleView = () => {
+    const segs = buildSegments(cfg);
+    const first = segs.find(s => s.type === 'work');
+    setPhaseColor('prep');
+    $('iPhase').textContent = '準備OK';
+    $('iTime').textContent = fmt(cfg.work);
+    $('iTime').classList.remove('pulse');
+    $('iCounter').textContent = `${cfg.sets}セット × ${cfg.rounds}ラウンド`;
+    $('iNext').innerHTML = first ? `ワーク <b>${fmt(cfg.work)}</b> ／ レスト <b>${fmt(cfg.rest)}</b>` : '&nbsp;';
+    setRing('iRing', 1);
+    $('iBar').style.width = '0%';
+    $('iElapsed').textContent = '経過 0:00';
+    $('iLeft').textContent = '残り ' + fmt(totalOf(segs));
+  };
+
+  const announce = (seg) => {
+    flash();
+    if (seg.type === 'work') {
+      beep(1320, 0.35); vibrate([200]);
+      const total = cfg.sets;
+      say(seg.set === total && seg.round === cfg.rounds ? 'ラスト！' : (seg.set === 1 && cfg.rounds > 1 ? `ラウンド${seg.round}、スタート` : 'スタート'));
+    } else if (seg.type === 'rest') {
+      beep(660, 0.35); vibrate([100, 80, 100]); say('休憩');
+    } else if (seg.type === 'round') {
+      beep(660, 0.25, 2); vibrate([100, 80, 100]); say(`ラウンド${seg.round}終了、休憩`);
+    } else if (seg.type === 'prep') {
+      beep(880, 0.15); say('準備');
+    }
+  };
+
+  const enterSeg = (i, fromTime) => {
+    I.idx = i; I.lastSec = null;
+    const seg = I.segs[i];
+    if (I.running) I.endAt = (fromTime ?? now()) + seg.dur * 1000;
+    else I.remain = seg.dur;
+    setPhaseColor(seg.type);
+  };
+
+  const finishInterval = () => {
+    const total = totalOf(I.segs);
+    I.running = false; I.started = false;
+    beep(1320, 0.18, 3, 0.06); vibrate([300, 100, 300]); say('おつかれさまでした');
+    setPhaseColor('done');
+    $('doneText').textContent = `${fmtLong(total)}・ワーク ${cfg.sets * cfg.rounds} 回 完了`;
+    $('done').classList.add('show');
+    updateButtons(); updateWake();
+    idleView();
+  };
+
+  const tickInterval = () => {
+    if (!I.started) return;
+    if (I.running) {
+      // バックグラウンド復帰時も含め、経過分だけ進める
+      let t = now();
+      while (I.endAt <= t) {
+        if (I.idx + 1 >= I.segs.length) { finishInterval(); return; }
+        const end = I.endAt;
+        enterSeg(I.idx + 1, end);
+        if (I.endAt > t) announce(I.segs[I.idx]);
+      }
+    }
+    const seg = I.segs[I.idx];
+    const rem = segRemain();
+    const sec = Math.ceil(rem - 1e-6);
+    $('iTime').textContent = fmt(rem);
+    $('iTime').classList.toggle('pulse', I.running && sec <= 3 && sec > 0);
+    setRing('iRing', rem / seg.dur);
+    $('iPhase').textContent = I.running ? seg.label : '一時停止';
+    if (seg.type === 'prep') $('iCounter').textContent = `${cfg.sets}セット × ${cfg.rounds}ラウンド`;
+    else $('iCounter').textContent = `セット ${seg.set}/${cfg.sets}` + (cfg.rounds > 1 ? `　ラウンド ${seg.round}/${cfg.rounds}` : '');
+    const nx = I.segs[I.idx + 1];
+    $('iNext').innerHTML = nx ? `次：<b>${nx.label}</b> ${fmt(nx.dur)}` : '次：<b>フィニッシュ</b>';
+    const total = totalOf(I.segs);
+    const done = totalOf(I.segs.slice(0, I.idx)) + (seg.dur - rem);
+    $('iBar').style.width = (done / total * 100).toFixed(2) + '%';
+    $('iElapsed').textContent = '経過 ' + fmt(Math.floor(done));
+    $('iLeft').textContent = '残り ' + fmt(total - done);
+
+    // 残り3秒のカウント
+    if (I.running && sec !== I.lastSec) {
+      I.lastSec = sec;
+      if (sec <= 3 && sec >= 1 && seg.dur > 3) {
+        beep(880, 0.1); say(String(sec));
+      } else if (seg.type === 'work' && seg.dur >= 20 && sec === Math.floor(seg.dur / 2) && seg.dur - sec > 3) {
+        say('半分');
+      } else if (seg.type === 'work' && sec === 10 && seg.dur >= 30) {
+        say('ラスト10秒');
+      }
+    }
+  };
+
+  const updateButtons = () => {
+    $('iStart').textContent = I.running ? '一時停止' : (I.started ? '再開' : 'スタート');
+    $('iPrev').disabled = !I.started;
+    $('iSkip').disabled = !I.started;
+    $('iReset').disabled = !I.started;
+    $('iSettings').hidden = I.started && window.matchMedia('(max-width: 899px), (orientation: portrait)').matches;
+    $('iSettings').style.opacity = I.started ? .45 : 1;
+    $('iSettings').style.pointerEvents = I.started ? 'none' : '';
+  };
+
+  $('iStart').onclick = () => {
+    unlockAudio();
+    if (!I.started) {
+      I.segs = buildSegments(cfg);
+      I.started = true; I.running = true;
+      enterSeg(0);
+      announce(I.segs[0]);
+    } else if (I.running) {
+      I.remain = segRemain(); I.running = false;
+      say('一時停止');
+    } else {
+      I.running = true; I.endAt = now() + I.remain * 1000; I.lastSec = null;
+      beep(1100, 0.1);
+    }
+    updateButtons(); updateWake(); tickInterval();
+  };
+  const jump = (i) => {
+    if (i < 0) i = 0;
+    if (i >= I.segs.length) { finishInterval(); return; }
+    enterSeg(i);
+    if (I.running) announce(I.segs[i]); else { setPhaseColor(I.segs[i].type); }
+    tickInterval();
+  };
+  $('iSkip').onclick = () => jump(I.idx + 1);
+  $('iPrev').onclick = () => {
+    const seg = I.segs[I.idx];
+    // 開始直後なら前のセグメント、そうでなければ現在のセグメントの頭に戻る
+    jump(seg.dur - segRemain() < 2 ? I.idx - 1 : I.idx);
+  };
+  $('iReset').onclick = () => {
+    I.running = false; I.started = false;
+    updateButtons(); updateWake(); idleView();
+  };
+  $('doneOk').onclick = () => $('done').classList.remove('show');
+
+  // =====================================================
+  // セット休憩
+  // =====================================================
+  const QUICK = [30, 45, 60, 90, 120, 180];
+  const R = { dur: store.get('restDur', 90), endAt: 0, running: false, lastSec: null, sets: store.get('sets', 0) };
+  const buildQuick = () => {
+    $('quick').innerHTML = '';
+    for (const q of QUICK) {
+      const b = document.createElement('button');
+      b.textContent = q < 60 ? `${q}秒` : fmt(q);
+      b.classList.toggle('on', q === R.dur);
+      b.onclick = () => { R.dur = q; store.set('restDur', q); buildQuick(); if (R.running) { R.endAt = now() + q * 1000; R.total = q; } else tickRest(); };
+      $('quick').appendChild(b);
+    }
+  };
+  const renderSets = () => { $('setNum').textContent = R.sets; store.set('sets', R.sets); };
+  $('setPlus').onclick = () => { R.sets++; renderSets(); };
+  $('setMinus').onclick = () => { R.sets = Math.max(0, R.sets - 1); renderSets(); };
+  $('setReset').onclick = () => { R.sets = 0; renderSets(); };
+
+  const startRest = () => {
+    unlockAudio();
+    R.running = true; R.total = R.dur; R.endAt = now() + R.dur * 1000; R.lastSec = null;
+    R.sets++; renderSets();
+    beep(660, 0.25); vibrate(100); say(`${R.sets}セット完了、休憩`);
+    flash();
+    updateRestButtons(); updateWake(); refreshColor(); tickRest();
+  };
+  const stopRest = (finished) => {
+    R.running = false;
+    if (finished) {
+      beep(1320, 0.3, 2); vibrate([300, 100, 300]); say(`次、${R.sets + 1}セット目`); flash();
+    }
+    updateRestButtons(); updateWake(); refreshColor(); tickRest();
+  };
+  const updateRestButtons = () => {
+    $('rStart').textContent = R.running ? '休憩をやめる' : '休憩スタート';
+  };
+  const tickRest = () => {
+    if (R.running) {
+      const rem = (R.endAt - now()) / 1000;
+      if (rem <= 0) { stopRest(true); return; }
+      const sec = Math.ceil(rem - 1e-6);
+      $('rPhase').textContent = '休憩中';
+      $('rTime').textContent = fmt(rem);
+      $('rTime').classList.toggle('pulse', sec <= 3);
+      $('rSub').textContent = `${R.sets}セット完了`;
+      setRing('rRing', rem / R.total);
+      if (sec !== R.lastSec) {
+        R.lastSec = sec;
+        if (sec <= 3) { beep(880, 0.1); say(String(sec)); }
+        else if (sec === 10 && R.total > 15) say('あと10秒');
+      }
+    } else {
+      $('rPhase').textContent = 'セット中';
+      $('rTime').textContent = fmt(R.dur);
+      $('rTime').classList.remove('pulse');
+      $('rSub').textContent = `次は ${R.sets + 1} セット目`;
+      setRing('rRing', 1);
+    }
+  };
+  $('rStart').onclick = () => R.running ? stopRest(false) : startRest();
+  const adjustRest = (d) => {
+    if (R.running) { R.endAt = Math.max(now() + 1000, R.endAt + d * 1000); R.total = Math.max(R.total + d, 1); tickRest(); }
+    else { R.dur = Math.max(5, Math.min(3600, R.dur + d)); store.set('restDur', R.dur); buildQuick(); tickRest(); }
+  };
+  $('rMinus').onclick = () => adjustRest(-10);
+  $('rPlus').onclick = () => adjustRest(10);
+  $('rTapAnywhere').checked = store.get('tapAny', false);
+  $('rTapAnywhere').onchange = (e) => store.set('tapAny', e.target.checked);
+  $('panel-rest').querySelector('.dial').addEventListener('click', () => {
+    if ($('rTapAnywhere').checked && !R.running) startRest();
+  });
+
+  // =====================================================
+  // ストップウォッチ
+  // =====================================================
+  const S = { running: false, base: 0, startAt: 0, laps: [] };
+  const swElapsed = () => S.base + (S.running ? now() - S.startAt : 0);
+  const lapStart = () => S.laps.reduce((a, l) => a + l, 0);
+  const renderLaps = () => {
+    const ul = $('laps');
+    if (!S.laps.length) { ul.innerHTML = '<li class="empty" style="display:block">ラップはまだありません</li>'; return; }
+    const min = Math.min(...S.laps), max = Math.max(...S.laps);
+    let cum = 0;
+    const rows = S.laps.map((l, i) => { cum += l; return { i: i + 1, l, cum }; }).reverse();
+    ul.innerHTML = rows.map(r => {
+      const cls = S.laps.length > 2 ? (r.l === min ? 'best' : r.l === max ? 'worst' : '') : '';
+      return `<li class="${cls}"><span>${r.i}</span><span>${fmtCs(r.l)}</span><span>${fmtCs(r.cum)}</span></li>`;
+    }).join('');
+  };
+  const tickSw = () => {
+    const t = swElapsed();
+    $('sTime').textContent = fmtCs(t);
+    $('sLap').textContent = 'ラップ ' + fmtCs(t - lapStart());
+    setRing('sRing', (t % 60000) / 60000);
+  };
+  const updateSwButtons = () => {
+    $('sStart').textContent = S.running ? 'ストップ' : (swElapsed() > 0 ? '再開' : 'スタート');
+    $('sLapBtn').disabled = !S.running;
+    $('sReset').disabled = S.running || swElapsed() === 0;
+    $('sPhase').textContent = S.running ? '計測中' : (swElapsed() > 0 ? '停止中' : 'ストップウォッチ');
+  };
+  $('sStart').onclick = () => {
+    unlockAudio();
+    if (S.running) { S.base = swElapsed(); S.running = false; }
+    else { S.startAt = now(); S.running = true; }
+    beep(1100, 0.08);
+    updateSwButtons(); updateWake(); refreshColor(); tickSw();
+  };
+  $('sLapBtn').onclick = () => { S.laps.push(swElapsed() - lapStart()); beep(1320, 0.06); renderLaps(); };
+  $('sReset').onclick = () => { S.base = 0; S.laps = []; renderLaps(); updateSwButtons(); tickSw(); refreshColor(); };
+
+  // ---------- 共通 ----------
+  function refreshColor() {
+    if (tab === 'interval') setPhaseColor(I.started ? I.segs[I.idx].type : 'prep');
+    else if (tab === 'rest') setPhaseColor(R.running ? 'rest' : 'work');
+    else setPhaseColor(S.running ? 'work' : 'prep');
+  }
+
+  const loop = () => {
+    tickInterval();
+    if (R.running) tickRest();
+    if (S.running) tickSw();
+    requestAnimationFrame(loop);
+  };
+  // rAF が止まる環境向けの保険
+  setInterval(() => { tickInterval(); if (R.running) tickRest(); }, 250);
+
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { updateWake(); } });
+
+  // キーボード：スペース=スタート/停止, →=次へ, ←=戻る, L=ラップ, R=リセット
+  document.addEventListener('keydown', (e) => {
+    if (e.target.closest('input')) return;
+    if (e.code === 'Space') {
+      e.preventDefault();
+      ({ interval: $('iStart'), rest: $('rStart'), stopwatch: $('sStart') })[tab].click();
+    } else if (tab === 'interval' && e.key === 'ArrowRight' && I.started) $('iSkip').click();
+    else if (tab === 'interval' && e.key === 'ArrowLeft' && I.started) $('iPrev').click();
+    else if (tab === 'stopwatch' && e.key.toLowerCase() === 'l' && S.running) $('sLapBtn').click();
+    else if (e.key.toLowerCase() === 'r') {
+      if (tab === 'interval' && I.started) $('iReset').click();
+      if (tab === 'stopwatch' && !S.running) $('sReset').click();
+    } else if (e.key === 'Escape') $('done').classList.remove('show');
+  });
+
+  // ---------- 初期化 ----------
+  buildRows(); buildPresets(); onCfgChange(); updateButtons();
+  buildQuick(); renderSets(); updateRestButtons(); tickRest();
+  renderLaps(); updateSwButtons(); tickSw();
+  showTab(['interval', 'rest', 'stopwatch'].includes(tab) ? tab : 'interval');
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
